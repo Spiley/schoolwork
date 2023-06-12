@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # (c) 2021-2023 HvA f.h.schippers@hva.nl
-__version__ = '1.0 2023-06-11'
+__version__ = '1.2 2023-06-12'
 __author__ = '${naam} ${achternaam} ${studnr}'
 
 import os, sys
@@ -175,10 +175,8 @@ class HvaCryptoMail:
         fname = name+'.prv'
         # Load the prv-key from file `fname` into prvKey
         if prvKey is None and os.path.exists(fname):
+            pass # To be removed
 # Student work {{
-            with open(fname, 'rb') as file:
-                prvKey = file.read()
-                self.prvs[name] = prvKey
 # Student work }}
         if prvKey is not None: self.prvs[name] = prvKey
         return
@@ -200,9 +198,8 @@ class HvaCryptoMail:
         fname = name +'.pub'
         # Load the pub-key from public key-file `fname` into pubKey
         if pubKey is None and os.path.exists(fname):
+            pass # To be removed
 # Student work {{
-            with open(fname, 'rb') as file:
-                pubKey = file.read()
 # Student work }}
         if pubKey: self.pubs[name] = pubKey
         return
@@ -213,7 +210,6 @@ class HvaCryptoMail:
         # set self.sesKey with an usable key
         sesKey = b'' # Initialize variable
 # Student work {{
-        sesKey = os.urandom(n)
 # Student work }}
         self.sesKey = sesKey
         return
@@ -224,7 +220,6 @@ class HvaCryptoMail:
         # set self.sesIv with an usable intial vector
         sesIv = b'' # Initialize variable
 # Student work {{
-        sesIv = os.urandom(n)
 # Student work }}
         self.sesIv = sesIv
         return
@@ -238,7 +233,6 @@ class HvaCryptoMail:
 
         encKey = None # Initialise variable
 # Student work {{
-    
 # Student work }}
         if encKey: self.rcvs[user] = encKey
         return encKey is not None
@@ -415,7 +409,7 @@ def decode(cmFname: str, receivers: list=None, senders: list=None) -> tuple:
 # Student work }} Verify
 
 # Convert bytes to str
-    mesg = cm.mesg.decode('utf-8')
+    mesg = cm.mesg.decode('utf-8') if cm.mesg else None
     return mesg, receiversState, sendersState, hashState, secretState
 
 

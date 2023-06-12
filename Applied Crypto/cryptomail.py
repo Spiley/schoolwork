@@ -535,7 +535,7 @@ def decode(cmFname: str, receivers: list=None, senders: list=None) -> tuple:
 # Student work }} Verify
 
 # Convert bytes to str
-    mesg = cm.mesg.decode('utf-8')
+    mesg = cm.mesg.decode('utf-8') if cm.mesg else None
     return mesg, receiversState, sendersState, hashState, secretState
 
 
