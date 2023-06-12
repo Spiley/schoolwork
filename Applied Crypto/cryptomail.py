@@ -2,7 +2,7 @@
 
 # (c) 2021-2023 HvA f.h.schippers@hva.nl
 __version__ = '1.0 2023-06-11'
-__author__ = '${Valentijn} ${Keijser} ${500852414}'
+__author__ = 'Valentijn Keijser 500852414'
 
 import os, sys
 import getopt
@@ -324,7 +324,8 @@ class HvaCryptoMail:
                 f"Unknown mode={self.modes}"
         signature = None # Initialize variable
 # Student work {{
-        if user in self.keys and self.priKey:
+        if user in self.sesKey and self.prvs:
+        # if user in self.keys and self.priKey:
             private_key = serialization.load_pem_private_key(self.priKey, password=None, backend=default_backend())
             message = self.mesg.encode('utf-8')
             signature = private_key.sign(
@@ -376,7 +377,7 @@ class HvaCryptoMail:
         dgst = b''
         # Calculate hash (SHA384) of self.mesg
 # Student work {{
-        message = self.mesg.encode('utf-8')
+        message = self.mesg.encode('utf-8') if isinstance(self.mesg, str) else self.mesg
         digest = hashes.Hash(hashes.SHA384(), backend=default_backend())
         digest.update(message)
         dgst = digest.finalize()
@@ -391,7 +392,7 @@ class HvaCryptoMail:
                 f"Unknown mode={self.modes}"
         res = None  # Initialized variable
 # Student work {{
-        message = self.mesg.encode('utf-8')
+        message = self.mesg  # No need to encode self.mesg again
         digest = hashes.Hash(hashes.SHA384(), backend=default_backend())
         digest.update(message)
         calculated_dgst = digest.finalize()
@@ -434,23 +435,25 @@ def encode(cmFname: str, mesg: str, senders: list, receivers: list) -> tuple:
     # Sign (don't forget addMode)
 # Student work {{
     cm.addMode('signed:rsa:pss-mgf1:sha384')
-    for sender in senders:
-        cm.signMesg(sender)
-        sendersState[sender] = True
+    if senders:
+        for sender in senders:
+            cm.signMesg(sender)
+            sendersState[sender] = True
 # Student work }} Sign
 
     # Encrypt (don't forget addMode)
 # Student work {{
     cm.addMode('crypted:aes256-cbf:pkcs7:rsa-oaep-mgf1-sha256')
-    for receiver in receivers:
-        cm.encryptMesg(receiver)
-        receiversState[receiver] = True
+    if receivers:
+        for receiver in receivers:
+            cm.encryptMesg(receiver)
+            receiversState[receiver] = True
 # Student work }} Encrypt
 
     # Remove secrets
     # Secrets should not be a part of the saved CryptoMail structure
 # Student work {{
-    cm.removeSecrets()
+    cm.__init__()
 # Student work }} Secrets
 
     # Save & Return
