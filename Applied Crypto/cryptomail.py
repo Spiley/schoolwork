@@ -514,12 +514,12 @@ def decode(cmFname: str, receivers: list=None, senders: list=None) -> tuple:
         for receiver in receivers:
             if receiver in cm.rcvs:
                 if cm.decryptMesg():
-                    receiversState = True
+                    receiversState[receiver] = True
 
         for sender in senders:
             if sender in cm.snds:
                 if cm.decryptMesg():
-                    sendersState = True
+                    sendersState[sender] = True
         # Student work }} Decrypt
 
     if cm.hasMode('hashed'):
@@ -551,7 +551,6 @@ def decode(cmFname: str, receivers: list=None, senders: list=None) -> tuple:
 
 # Convert bytes to str
     mesg = cm.mesg.decode('utf-8') if cm.mesg else None
-    print(mesg, receiversState, sendersState, hashState, secretState )
     return mesg, receiversState, sendersState, hashState, secretState
 
 
