@@ -317,12 +317,19 @@ class HvaCryptoMail:
                 f"Unknown mode={self.modes}"
         code = None # Initialize variable
 # Student work {{
-        if self.mesg and self.sesKey and self.sesIv:
-            cipher = ciphers.Cipher(algorithms.AES(self.sesKey), modes.CBC(self.sesIv), backend=default_backend())
+        if self.sesKey is not None and self.sesIv is not None:
+            # Encrypt the message
+            message = self.mesg.encode('utf-8') if isinstance(self.mesg, str) else self.mesg
+            cipher = ciphers.Cipher(algorithms.AES(self.sesKey), modes.CFB(self.sesIv), backend=default_backend())
             encryptor = cipher.encryptor()
-            padder = sympadding.PKCS7(algorithms.AES.block_size).padder()
-            padded_data = padder.update(self.mesg.encode('utf-8')) + padder.finalize()
-            code = encryptor.update(padded_data) + encryptor.finalize()
+            code = encryptor.update(message) + encryptor.finalize()
+
+            # Pad the message
+            padder = sympadding.PKCS7(128).padder()
+            padded_data = padder.update(code)
+            padded_data += padder.finalize()
+            self.code = padded_data
+            code = padded_data
 # Student work }}
         if code is not None: self.code = code
         return code is not None
@@ -334,28 +341,18 @@ class HvaCryptoMail:
 
         mesg = None # Initalise variable
 # Student work {{
-        symm_algo = self.modes[0].split(':')[2]  # Get the symmetric algorithm
-        symm_mode = self.modes[0].split(':')[3]  # Get the symmetric mode
+        if self.code:
+            # Unpad the message
+            unpadder = sympadding.PKCS7(128).unpadder()
+            unpadded_data = unpadder.update(self.code)
+            unpadded_data += unpadder.finalize()
 
-        if 'rsa' in self.modes:
-            private_key = self.prvs['user1']
-            cipher_rsa = ciphers.asymmetric.rsa.RSACipher(private_key)
-            decrypted_rsa = cipher_rsa.decrypt(self.code, asympadding.OAEP(
-                mgf=asympadding.MGF1(algorithm=hashes.SHA256()),
-                algorithm=hashes.SHA256(),
-                label=None
-            ))
-            symm_algo = self.modes.split(':')[2]  # Get the symmetric algorithm
-            symm_mode = self.modes.split(':')[3]  # Get the symmetric mode
-
-        # Decrypt the symmetrically encrypted message
-        if symm_algo == 'aes256-cbf' and symm_mode == 'pkcs7':
-            symmetric_key = decrypted_rsa[:32]  # Extract the symmetric key
-            symmetric_iv = decrypted_rsa[32:48]  # Extract the initialization vector
-            cipher_symm = ciphers.Cipher(algorithms.AES(symmetric_key), modes.CBC(symmetric_iv), backend=default_backend())
-            decryptor = cipher_symm.decryptor()
-            decrypted_symm = decryptor.update(decrypted_rsa[48:]) + decryptor.finalize()
-            mesg = decrypted_symm
+            # Decrypt the message
+            cipher = ciphers.Cipher(algorithms.AES(self.sesKey), modes.CFB(self.sesIv), backend=default_backend())
+            decryptor = cipher.decryptor()
+            mesg = decryptor.update(unpadded_data) + decryptor.finalize()
+            mesg = mesg.decode('utf-8')
+            self.mesg = mesg
 # Student work }}
         if mesg is not None: self.mesg = mesg
         return mesg is not None
@@ -607,6 +604,36 @@ gDbg = False
 gSil = False
 
 def main():
+    obj = HvaCryptoMail()
+    obj.mesg = "Hello, world!"
+    obj.modes = ['crypted:aes256-cbf:pkcs7:rsa-oaep-mgf1-sha256']
+    # Generate a session key and initialization vector
+    obj.sesKey = b'\x84\xea\x0b\x88\x95vnW\xce\xf5\xa3\xec\xa0\xa6-\xc4$\xd2y\xc6\xfd\x03\xd1\x16\xe2\x99\x88\xbb\xc2\x08\x89\x1c'
+    obj.sesIv = b'\x9c*\xe2\x98\x11\xf7\x1fy\xd9\x14\x00\xa7e\xaf\xe9\x96'
+
+    # Test encryption
+    encryption_success = obj.encryptMesg()
+    if encryption_success:
+        print("Encryption successful.")
+        print("Encrypted message:", obj.code)
+    else:
+        print("Encryption failed.")
+
+    # Test decryption
+    decryption_success = obj.decryptMesg()
+    if decryption_success:
+        print("Decryption successful.")
+        print("Decrypted message:", obj.mesg)
+    else:
+        print("Decryption failed.")
+
+    # Compare original message with decrypted message
+    if obj.mesg == "Hello, world!":
+        print("Original message and decrypted message match.")
+    else:
+        print("Original message and decrypted message do not match.")
+
+
     global gVbs, gDbg, gSil
     autoLoad = True
     cmFname = ''
