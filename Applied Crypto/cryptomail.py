@@ -177,7 +177,8 @@ class HvaCryptoMail:
         if prvKey is None and os.path.exists(fname):
 # Student work {{
             with open(fname, 'rb') as file:
-                prvKey = file.read()
+                prvKeyData = file.read()
+                prvKey = serialization.load_pem_private_key(prvKeyData, password=None, backend=default_backend())
                 self.prvs[name] = prvKey
 # Student work }}
         if prvKey is not None: self.prvs[name] = prvKey
@@ -202,7 +203,9 @@ class HvaCryptoMail:
         if pubKey is None and os.path.exists(fname):
 # Student work {{
             with open(fname, 'rb') as file:
-                pubKey = file.read()
+                pubKeyData = file.read()
+                pubKey = serialization.load_pem_public_key(pubKeyData, backend=default_backend())
+                self.pubs[name] = pubKey
 # Student work }}
         if pubKey: self.pubs[name] = pubKey
         return
@@ -314,12 +317,18 @@ class HvaCryptoMail:
                 f"Unknown mode={self.modes}"
         code = None # Initialize variable
 # Student work {{
-        if self.mesg and self.sesKey and self.sesIv:
-            cipher = ciphers.Cipher(algorithms.AES(self.sesKey), modes.CBC(self.sesIv), backend=default_backend())
+        if self.sesKey is not None and self.sesIv is not None:
+            # Encrypt
+            message = self.mesg.encode('utf-8') if isinstance(self.mesg, str) else self.mesg
+            cipher = ciphers.Cipher(algorithms.AES(self.sesKey), modes.CFB(self.sesIv), backend=default_backend())
             encryptor = cipher.encryptor()
-            padder = sympadding.PKCS7(algorithms.AES.block_size).padder()
-            padded_data = padder.update(self.mesg.encode('utf-8')) + padder.finalize()
-            code = encryptor.update(padded_data) + encryptor.finalize()
+            code = encryptor.update(message) + encryptor.finalize()
+
+            # Padding
+            padder = sympadding.PKCS7(128).padder()
+            padded_data = padder.update(code)
+            padded_data += padder.finalize()
+            code = padded_data
 # Student work }}
         if code is not None: self.code = code
         return code is not None
@@ -331,28 +340,17 @@ class HvaCryptoMail:
 
         mesg = None # Initalise variable
 # Student work {{
-        symm_algo = self.modes[0].split(':')[2]  # Get the symmetric algorithm
-        symm_mode = self.modes[0].split(':')[3]  # Get the symmetric mode
+        if self.sesKey is not None and self.sesIv is not None:
+            # Unpadding
+            unpadder = sympadding.PKCS7(128).unpadder()
+            padded_data = self.code
+            data = unpadder.update(padded_data)
+            data += unpadder.finalize()
 
-        if 'rsa' in self.modes:
-            private_key = self.prvs['user1']
-            cipher_rsa = ciphers.asymmetric.rsa.RSACipher(private_key)
-            decrypted_rsa = cipher_rsa.decrypt(self.code, asympadding.OAEP(
-                mgf=asympadding.MGF1(algorithm=hashes.SHA256()),
-                algorithm=hashes.SHA256(),
-                label=None
-            ))
-            symm_algo = self.modes.split(':')[2]  # Get the symmetric algorithm
-            symm_mode = self.modes.split(':')[3]  # Get the symmetric mode
-
-        # Decrypt the symmetrically encrypted message
-        if symm_algo == 'aes256-cbf' and symm_mode == 'pkcs7':
-            symmetric_key = decrypted_rsa[:32]  # Extract the symmetric key
-            symmetric_iv = decrypted_rsa[32:48]  # Extract the initialization vector
-            cipher_symm = ciphers.Cipher(algorithms.AES(symmetric_key), modes.CBC(symmetric_iv), backend=default_backend())
-            decryptor = cipher_symm.decryptor()
-            decrypted_symm = decryptor.update(decrypted_rsa[48:]) + decryptor.finalize()
-            mesg = decrypted_symm
+            # Decrypt
+            cipher = ciphers.Cipher(algorithms.AES(self.sesKey), modes.CFB(self.sesIv), backend=default_backend())
+            decryptor = cipher.decryptor()
+            mesg = decryptor.update(data) + decryptor.finalize()
 # Student work }}
         if mesg is not None: self.mesg = mesg
         return mesg is not None
@@ -365,18 +363,29 @@ class HvaCryptoMail:
                 f"Unknown mode={self.modes}"
         signature = None # Initialize variable
 # Student work {{
-        if self.sesKey is not None and self.prvs is not None:
-            if user in self.sesKey:
-                private_key = serialization.load_pem_private_key(self.prvs, password=None, backend=default_backend())
-                message = self.mesg.encode('utf-8')
-                signature = private_key.sign(
-                    message,
-                    asympadding.PSS(
-                        mgf=asympadding.MGF1(hashes.SHA384()),
-                        salt_length=asympadding.PSS.MAX_LENGTH
-                    ),
-                    hashes.SHA384()
+        if user in self.prvs:
+            privKey = self.prvs[user]
+            if isinstance(privKey, bytes):
+                # private_key is in bytes
+                private_key = serialization.load_pem_private_key(
+                    privKey,
+                    password=None,
+                    backend=default_backend()
                 )
+            else:
+                private_key = privKey
+                # private_key is een _RSAPrivateKey
+
+            # Sign
+            message = self.mesg.encode('utf-8') if isinstance(self.mesg, str) else self.mesg
+            signature = private_key.sign(
+                message,
+                asympadding.PSS(
+                    mgf=asympadding.MGF1(hashes.SHA384()),
+                    salt_length=asympadding.PSS.MAX_LENGTH
+                ),
+                hashes.SHA384()
+            )
 # Student work }}
         if signature: self.snds[user] = signature
         return signature is not None
@@ -389,23 +398,33 @@ class HvaCryptoMail:
                 f"Unknown mode={self.modes}"
         verified = None # Initialize variable
 # Student work {{
-        if user in self.snds:
-                signature = self.snds[user]
-                public_key = self.pubs[user]
-                message = self.mesg  
-                try:
-                    public_key.verify(
-                        signature,
-                        message,
-                        asympadding.PSS(
-                            mgf=asympadding.MGF1(hashes.SHA384()),
-                            salt_length=asympadding.PSS.MAX_LENGTH
-                        ),
-                        hashes.SHA384()
-                    )
-                    verified = True
-                except exceptions.InvalidSignature:
-                    verified = None
+        if user in self.pubs:
+            pubKey = self.pubs[user]
+            if isinstance(pubKey, bytes):
+                # public_key is in bytes
+                public_key = serialization.load_pem_public_key(
+                    pubKey,
+                    backend=default_backend()
+                )
+            else:
+                public_key = pubKey
+                # public_key is een _RSAPublicKey
+
+            # Verify
+            message = self.mesg.encode('utf-8') if isinstance(self.mesg, str) else self.mesg
+            try:
+                public_key.verify(
+                    self.snds[user],
+                    message,
+                    asympadding.PSS(
+                        mgf=asympadding.MGF1(hashes.SHA384()),
+                        salt_length=asympadding.PSS.MAX_LENGTH
+                    ),
+                    hashes.SHA384()
+                )
+                verified = True
+            except exceptions.InvalidSignature:
+                verified = False
 # Student work }}
         return verified
 
@@ -578,7 +597,18 @@ def decode(cmFname: str, receivers: list=None, senders: list=None) -> tuple:
         # Verify the message for receivers or senders
         # and update sendersState of receiversState
 # Student work {{
-# Student work }} Verify
+    for receiver in receivers:
+        if cm.verifyMesg(receiver):
+            receiversState[receiver] = True
+        else:
+            receiversState[receiver] = False
+    
+    for sender in senders:
+        if cm.verifyMesg(sender):
+            sendersState[sender] = True
+        else:
+            sendersState[sender] = False
+    # Student work }} Verify
 
 # Convert bytes to str
     mesg = cm.mesg.decode('utf-8') if cm.mesg else None
@@ -593,6 +623,7 @@ gDbg = False
 gSil = False
 
 def main():
+
     global gVbs, gDbg, gSil
     autoLoad = True
     cmFname = ''
