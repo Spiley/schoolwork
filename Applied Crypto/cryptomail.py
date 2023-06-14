@@ -177,7 +177,8 @@ class HvaCryptoMail:
         if prvKey is None and os.path.exists(fname):
 # Student work {{
             with open(fname, 'rb') as file:
-                prvKey = file.read()
+                prvKeyData = file.read()
+                prvKey = serialization.load_pem_private_key(prvKeyData, password=None, backend=default_backend())
                 self.prvs[name] = prvKey
 # Student work }}
         if prvKey is not None: self.prvs[name] = prvKey
@@ -202,7 +203,9 @@ class HvaCryptoMail:
         if pubKey is None and os.path.exists(fname):
 # Student work {{
             with open(fname, 'rb') as file:
-                pubKey = file.read()
+                pubKeyData = file.read()
+                pubKey = serialization.load_pem_public_key(pubKeyData, backend=default_backend())
+                self.pubs[name] = pubKey
 # Student work }}
         if pubKey: self.pubs[name] = pubKey
         return
@@ -578,7 +581,18 @@ def decode(cmFname: str, receivers: list=None, senders: list=None) -> tuple:
         # Verify the message for receivers or senders
         # and update sendersState of receiversState
 # Student work {{
-# Student work }} Verify
+    for receiver in receivers:
+        if cm.verifyMesg(receiver):
+            receiversState[receiver] = True
+        else:
+            receiversState[receiver] = False
+    
+    for sender in senders:
+        if cm.verifyMesg(sender):
+            sendersState[sender] = True
+        else:
+            sendersState[sender] = False
+    # Student work }} Verify
 
 # Convert bytes to str
     mesg = cm.mesg.decode('utf-8') if cm.mesg else None
