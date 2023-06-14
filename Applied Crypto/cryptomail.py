@@ -244,7 +244,7 @@ class HvaCryptoMail:
             if isinstance(pubKey, bytes):
                 # public_key is in bytes
                 public_key = serialization.load_pem_public_key(
-                    self.pubs[user],
+                    pubKey,
                     backend=default_backend()
                 )
             else:
@@ -271,19 +271,38 @@ class HvaCryptoMail:
                 f"Unknown mode={self.modes}"
         sesKey = None # Initialise variable
         # Student work {{
-        prvKey = self.prvs.get(user)
-        encKey = self.rcvs.get(user)
+              # Check if the user exists in the received keys
+        if user in self.rcvs:
+            encKey = self.rcvs[user]
+            
+            # Retrieve the private key for decryption
+            if user in self.privs:
+                privKey = self.privs[user]
+                if isinstance(privKey, bytes):
+                    # private_key is in bytes
+                    private_key = serialization.load_pem_private_key(
+                        privKey,
+                        password=None,
+                        backend=default_backend()
+                    )
+                else:
+                    private_key = privKey
+                    # private_key is in _RSAPrivateKey
 
-        if prvKey and encKey:
-            # Decrypt the session key
-            sesKey = prvKey.decrypt(
-                encKey,
-                asympadding.OAEP(
-                    mgf=asympadding.MGF1(algorithm=hashes.SHA256()),
-                    algorithm=hashes.SHA256(),
-                    label=None
-                )
-            )
+                try:
+                    # Decrypt the encrypted session key
+                    sesKey = private_key.decrypt(
+                        encKey,
+                        asympadding.OAEP(
+                            mgf=asympadding.MGF1(algorithm=hashes.SHA256()),
+                            algorithm=hashes.SHA256(),
+                            label=None
+                        )
+                    )
+                except ValueError:
+                    print('Decryption failed')
+                    # Decryption failed
+
         # Student work }}
         if sesKey: self.sesKey = sesKey
         return sesKey is not None
@@ -523,13 +542,15 @@ def decode(cmFname: str, receivers: list=None, senders: list=None) -> tuple:
 # Student work {{
         for receiver in receivers:
             if receiver in cm.rcvs:
-                if cm.decryptMesg():
-                    receiversState[receiver] = True
-
+                if cm.decryptSesKey(receiver):
+                    if cm.decryptMesg():
+                        receiversState[receiver] = True
+                        
         for sender in senders:
             if sender in cm.snds:
-                if cm.decryptMesg():
-                    sendersState[sender] = True
+                if cm.decryptSesKey(sender):
+                    if cm.decryptMesg():
+                        sendersState[sender] = True
         # Student work }} Decrypt
 
     if cm.hasMode('hashed'):
