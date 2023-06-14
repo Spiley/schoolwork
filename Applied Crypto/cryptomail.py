@@ -271,13 +271,14 @@ class HvaCryptoMail:
                 f"Unknown mode={self.modes}"
         sesKey = None # Initialise variable
         # Student work {{
-              # Check if the user exists in the received keys
+        print('Decrypting session key')
+        print(vars(self))
         if user in self.rcvs:
             encKey = self.rcvs[user]
-            
+
             # Retrieve the private key for decryption
-            if user in self.privs:
-                privKey = self.privs[user]
+            if user in self.prvs:
+                privKey = self.prvs[user]
                 if isinstance(privKey, bytes):
                     # private_key is in bytes
                     private_key = serialization.load_pem_private_key(
@@ -529,6 +530,7 @@ def decode(cmFname: str, receivers: list=None, senders: list=None) -> tuple:
 
 # Set secretState to True as no secrets are reveiled otherwise False
 # Student work {{
+    print('cmFname: ', cmFname, 'reciever: ', receivers, 'sender: ', senders)
     if cm.hasMode('secret'):
         secretState = False
     else:
@@ -541,17 +543,25 @@ def decode(cmFname: str, receivers: list=None, senders: list=None) -> tuple:
         # and update sendersState of receiversState
 # Student work {{
         for receiver in receivers:
-            if receiver in cm.rcvs:
-                if cm.decryptSesKey(receiver):
-                    if cm.decryptMesg():
-                        receiversState[receiver] = True
-                        
+            if cm.decryptSesKey(receiver):
+                if cm.decryptMesg():
+                    receiversState[receiver] = True
+                    secretState = True
+                else:
+                    receiversState[receiver] = False
+            else:
+                receiversState[receiver] = False
+        
         for sender in senders:
-            if sender in cm.snds:
-                if cm.decryptSesKey(sender):
-                    if cm.decryptMesg():
-                        sendersState[sender] = True
-        # Student work }} Decrypt
+            if cm.decryptSesKey(sender):
+                if cm.decryptMesg():
+                    sendersState[sender] = True
+                    secretState = True
+                else:
+                    sendersState[sender] = False
+            else:
+                sendersState[sender] = False
+# Student work }} Decrypt
 
     if cm.hasMode('hashed'):
         if gVbs: print('Verbose: hashed')
@@ -569,15 +579,6 @@ def decode(cmFname: str, receivers: list=None, senders: list=None) -> tuple:
         # Verify the message for receivers or senders
         # and update sendersState of receiversState
 # Student work {{
-        for receiver in receivers:
-            if receiver in cm.rcvs:
-                if cm.verifyMesg(receiver):
-                    receiversState[receiver] = True
-
-        for sender in senders:
-            if sender in cm.snds:
-                if cm.verifyMesg(sender):
-                    sendersState[sender] = True
 # Student work }} Verify
 
 # Convert bytes to str
