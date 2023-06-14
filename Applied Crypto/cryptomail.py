@@ -318,17 +318,16 @@ class HvaCryptoMail:
         code = None # Initialize variable
 # Student work {{
         if self.sesKey is not None and self.sesIv is not None:
-            # Encrypt the message
+            # Encrypt
             message = self.mesg.encode('utf-8') if isinstance(self.mesg, str) else self.mesg
             cipher = ciphers.Cipher(algorithms.AES(self.sesKey), modes.CFB(self.sesIv), backend=default_backend())
             encryptor = cipher.encryptor()
             code = encryptor.update(message) + encryptor.finalize()
 
-            # Pad the message
+            # Padding
             padder = sympadding.PKCS7(128).padder()
             padded_data = padder.update(code)
             padded_data += padder.finalize()
-            self.code = padded_data
             code = padded_data
 # Student work }}
         if code is not None: self.code = code
@@ -341,18 +340,17 @@ class HvaCryptoMail:
 
         mesg = None # Initalise variable
 # Student work {{
-        if self.code:
-            # Unpad the message
+        if self.sesKey is not None and self.sesIv is not None:
+            # Unpadding
             unpadder = sympadding.PKCS7(128).unpadder()
-            unpadded_data = unpadder.update(self.code)
-            unpadded_data += unpadder.finalize()
+            padded_data = self.code
+            data = unpadder.update(padded_data)
+            data += unpadder.finalize()
 
-            # Decrypt the message
+            # Decrypt
             cipher = ciphers.Cipher(algorithms.AES(self.sesKey), modes.CFB(self.sesIv), backend=default_backend())
             decryptor = cipher.decryptor()
-            mesg = decryptor.update(unpadded_data) + decryptor.finalize()
-            mesg = mesg.decode('utf-8')
-            self.mesg = mesg
+            mesg = decryptor.update(data) + decryptor.finalize()
 # Student work }}
         if mesg is not None: self.mesg = mesg
         return mesg is not None
@@ -365,18 +363,29 @@ class HvaCryptoMail:
                 f"Unknown mode={self.modes}"
         signature = None # Initialize variable
 # Student work {{
-        if self.sesKey is not None and self.prvs is not None:
-            if user in self.sesKey:
-                private_key = serialization.load_pem_private_key(self.prvs, password=None, backend=default_backend())
-                message = self.mesg.encode('utf-8')
-                signature = private_key.sign(
-                    message,
-                    asympadding.PSS(
-                        mgf=asympadding.MGF1(hashes.SHA384()),
-                        salt_length=asympadding.PSS.MAX_LENGTH
-                    ),
-                    hashes.SHA384()
+        if user in self.prvs:
+            privKey = self.prvs[user]
+            if isinstance(privKey, bytes):
+                # private_key is in bytes
+                private_key = serialization.load_pem_private_key(
+                    privKey,
+                    password=None,
+                    backend=default_backend()
                 )
+            else:
+                private_key = privKey
+                # private_key is een _RSAPrivateKey
+
+            # Sign
+            message = self.mesg.encode('utf-8') if isinstance(self.mesg, str) else self.mesg
+            signature = private_key.sign(
+                message,
+                asympadding.PSS(
+                    mgf=asympadding.MGF1(hashes.SHA384()),
+                    salt_length=asympadding.PSS.MAX_LENGTH
+                ),
+                hashes.SHA384()
+            )
 # Student work }}
         if signature: self.snds[user] = signature
         return signature is not None
@@ -389,23 +398,33 @@ class HvaCryptoMail:
                 f"Unknown mode={self.modes}"
         verified = None # Initialize variable
 # Student work {{
-        if user in self.snds:
-                signature = self.snds[user]
-                public_key = self.pubs[user]
-                message = self.mesg  
-                try:
-                    public_key.verify(
-                        signature,
-                        message,
-                        asympadding.PSS(
-                            mgf=asympadding.MGF1(hashes.SHA384()),
-                            salt_length=asympadding.PSS.MAX_LENGTH
-                        ),
-                        hashes.SHA384()
-                    )
-                    verified = True
-                except exceptions.InvalidSignature:
-                    verified = None
+        if user in self.pubs:
+            pubKey = self.pubs[user]
+            if isinstance(pubKey, bytes):
+                # public_key is in bytes
+                public_key = serialization.load_pem_public_key(
+                    pubKey,
+                    backend=default_backend()
+                )
+            else:
+                public_key = pubKey
+                # public_key is een _RSAPublicKey
+
+            # Verify
+            message = self.mesg.encode('utf-8') if isinstance(self.mesg, str) else self.mesg
+            try:
+                public_key.verify(
+                    self.snds[user],
+                    message,
+                    asympadding.PSS(
+                        mgf=asympadding.MGF1(hashes.SHA384()),
+                        salt_length=asympadding.PSS.MAX_LENGTH
+                    ),
+                    hashes.SHA384()
+                )
+                verified = True
+            except exceptions.InvalidSignature:
+                verified = False
 # Student work }}
         return verified
 
@@ -604,35 +623,6 @@ gDbg = False
 gSil = False
 
 def main():
-    obj = HvaCryptoMail()
-    obj.mesg = "Hello, world!"
-    obj.modes = ['crypted:aes256-cbf:pkcs7:rsa-oaep-mgf1-sha256']
-    # Generate a session key and initialization vector
-    obj.sesKey = b'\x84\xea\x0b\x88\x95vnW\xce\xf5\xa3\xec\xa0\xa6-\xc4$\xd2y\xc6\xfd\x03\xd1\x16\xe2\x99\x88\xbb\xc2\x08\x89\x1c'
-    obj.sesIv = b'\x9c*\xe2\x98\x11\xf7\x1fy\xd9\x14\x00\xa7e\xaf\xe9\x96'
-
-    # Test encryption
-    encryption_success = obj.encryptMesg()
-    if encryption_success:
-        print("Encryption successful.")
-        print("Encrypted message:", obj.code)
-    else:
-        print("Encryption failed.")
-
-    # Test decryption
-    decryption_success = obj.decryptMesg()
-    if decryption_success:
-        print("Decryption successful.")
-        print("Decrypted message:", obj.mesg)
-    else:
-        print("Decryption failed.")
-
-    # Compare original message with decrypted message
-    if obj.mesg == "Hello, world!":
-        print("Original message and decrypted message match.")
-    else:
-        print("Original message and decrypted message do not match.")
-
 
     global gVbs, gDbg, gSil
     autoLoad = True
