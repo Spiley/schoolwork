@@ -271,12 +271,11 @@ class HvaCryptoMail:
                 f"Unknown mode={self.modes}"
         sesKey = None # Initialise variable
         # Student work {{
-        print('Decrypting session key')
-        print(vars(self))
+        # user is in self.rcvs
         if user in self.rcvs:
             encKey = self.rcvs[user]
 
-            # Retrieve the private key for decryption
+            # de private key voor decryption
             if user in self.prvs:
                 privKey = self.prvs[user]
                 if isinstance(privKey, bytes):
@@ -288,10 +287,10 @@ class HvaCryptoMail:
                     )
                 else:
                     private_key = privKey
-                    # private_key is in _RSAPrivateKey
+                    # private_key is een _RSAPrivateKey
 
                 try:
-                    # Decrypt the encrypted session key
+                    # Decrypt de encrypted session key
                     sesKey = private_key.decrypt(
                         encKey,
                         asympadding.OAEP(
@@ -315,10 +314,14 @@ class HvaCryptoMail:
                 f"Unknown mode={self.modes}"
         code = None # Initialize variable
 # Student work {{
+        # Encrypt the message 
         if self.mesg and self.sesKey and self.sesIv:
+            # Encrypt the message wmet de session key
             cipher = ciphers.Cipher(algorithms.AES(self.sesKey), modes.CBC(self.sesIv), backend=default_backend())
             encryptor = cipher.encryptor()
+            # Pad de message
             padder = sympadding.PKCS7(algorithms.AES.block_size).padder()
+            # Encrypt de padded message
             padded_data = padder.update(self.mesg.encode('utf-8')) + padder.finalize()
             code = encryptor.update(padded_data) + encryptor.finalize()
 # Student work }}
