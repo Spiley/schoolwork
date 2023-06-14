@@ -314,14 +314,10 @@ class HvaCryptoMail:
                 f"Unknown mode={self.modes}"
         code = None # Initialize variable
 # Student work {{
-        # Encrypt the message 
         if self.mesg and self.sesKey and self.sesIv:
-            # Encrypt the message wmet de session key
             cipher = ciphers.Cipher(algorithms.AES(self.sesKey), modes.CBC(self.sesIv), backend=default_backend())
             encryptor = cipher.encryptor()
-            # Pad de message
             padder = sympadding.PKCS7(algorithms.AES.block_size).padder()
-            # Encrypt de padded message
             padded_data = padder.update(self.mesg.encode('utf-8')) + padder.finalize()
             code = encryptor.update(padded_data) + encryptor.finalize()
 # Student work }}
