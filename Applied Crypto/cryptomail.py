@@ -238,12 +238,20 @@ class HvaCryptoMail:
 
         encKey = None # Initialise variable
 # Student work {{
-        # get public key
-        pubKey = self.pubs.get(user)
-
-        if pubKey:
-            # Encrypt de session key 
-            cipher = pubKey.encrypt(
+        # Encrypt the session key for the user
+        if user in self.pubs:
+            pubKey = self.pubs[user]
+            if isinstance(pubKey, bytes):
+                # public_key is in bytes
+                public_key = serialization.load_pem_public_key(
+                    self.pubs[user],
+                    backend=default_backend()
+                )
+            else:
+                public_key = pubKey
+                # public_key is in _RSAPublicKey
+                
+            encKey = public_key.encrypt(
                 self.sesKey,
                 asympadding.OAEP(
                     mgf=asympadding.MGF1(algorithm=hashes.SHA256()),
@@ -251,8 +259,6 @@ class HvaCryptoMail:
                     label=None
                 )
             )
-            encKey = cipher
-        
 # Student work }}
         if encKey: self.rcvs[user] = encKey
         return encKey is not None
@@ -293,7 +299,7 @@ class HvaCryptoMail:
             cipher = ciphers.Cipher(algorithms.AES(self.sesKey), modes.CBC(self.sesIv), backend=default_backend())
             encryptor = cipher.encryptor()
             padder = sympadding.PKCS7(algorithms.AES.block_size).padder()
-            padded_data = padder.update(self.mesg) + padder.finalize()
+            padded_data = padder.update(self.mesg.encode('utf-8')) + padder.finalize()
             code = encryptor.update(padded_data) + encryptor.finalize()
 # Student work }}
         if code is not None: self.code = code
@@ -462,6 +468,10 @@ def encode(cmFname: str, mesg: str, senders: list, receivers: list) -> tuple:
     cm.addMode('crypted:aes256-cbf:pkcs7:rsa-oaep-mgf1-sha256')
     if receivers:
         for receiver in receivers:
+            cm.loadPubKey(receiver)
+            cm.genSesKey(32)
+            cm.genSesIv(16)
+            cm.encryptSesKey(receiver)
             cm.encryptMesg()
             receiversState[receiver] = True
 # Student work }} Encrypt
