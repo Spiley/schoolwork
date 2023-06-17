@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # (c) 2021-2023 HvA f.h.schippers@hva.nl
-__version__ = '1.2 2023-06-12'
+__version__ = '1.4 2023-06-14'
 __author__ = '${naam} ${achternaam} ${studnr}'
 
 import os, sys
@@ -49,7 +49,7 @@ class HvaCryptoMail:
 
     def __init__(self) -> None:
         """ Initilalise the used variables """
-        self.version = '1.0'    # Version number
+        self.version = '1.1'    # Version number
         self.modes   = []       # Specifies the used algorithms
         self.snds    = {}       # keys: names of senders, values: relevant data
         self.rcvs    = {}       # keys: names of receivers, values: relevant data
@@ -144,10 +144,10 @@ class HvaCryptoMail:
         """ Add the use mode to the mode-list
             Only one type crypted and Only one type of signed """
         if mode not in [
-                'crypted:aes256-cbf:pkcs7:rsa-oaep-mgf1-sha256',
+                'crypted:aes256-cfb:pkcs7:rsa-oaep-mgf1-sha256',
                 'signed:rsa-pss-mgf1-sha384',
                 'hashed:sha384' ]:
-            # crypted:aes256-cbf:pkcs7:rsa-oaep-mgf1-sha256
+            # crypted:aes256-cfb:pkcs7:rsa-oaep-mgf1-sha256
             #   Message padded with pkcs7
             #   Message Encrypted with AES-128 met CFB
             #   Key protected with RSA with OAEP, MGF1 and SHA256
@@ -228,7 +228,7 @@ class HvaCryptoMail:
     def encryptSesKey(self, user: str) -> bool:
         """ Encrypt the session-key for `user` in `self.rcvs` """
         # Implememt encryption using RSA with OAEP, MGF1 and SHA256
-        assert 'crypted:aes256-cbf:pkcs7:rsa-oaep-mgf1-sha256' in self.modes, \
+        assert 'crypted:aes256-cfb:pkcs7:rsa-oaep-mgf1-sha256' in self.modes, \
                 f"Unknown mode={self.modes}"
 
         encKey = None # Initialise variable
@@ -241,7 +241,7 @@ class HvaCryptoMail:
     def decryptSesKey(self, user: str) -> bool:
         """ Decrypt the session-key saved in `self.rcvs` for `user` """
         # Implememt decryption using RSA with OAEP, MGF1 and SHA256
-        assert 'crypted:aes256-cbf:pkcs7:rsa-oaep-mgf1-sha256' in self.modes, \
+        assert 'crypted:aes256-cfb:pkcs7:rsa-oaep-mgf1-sha256' in self.modes, \
                 f"Unknown mode={self.modes}"
         sesKey = None # Initialise variable
 # Student work {{
@@ -252,7 +252,7 @@ class HvaCryptoMail:
 
     def encryptMesg(self) -> bool:
         """ Encrypt the message (self.mesg) result in self.code"""
-        assert 'crypted:aes256-cbf:pkcs7:rsa-oaep-mgf1-sha256' in self.modes, \
+        assert 'crypted:aes256-cfb:pkcs7:rsa-oaep-mgf1-sha256' in self.modes, \
                 f"Unknown mode={self.modes}"
         code = None # Initialize variable
 # Student work {{
@@ -262,7 +262,7 @@ class HvaCryptoMail:
 
     def decryptMesg(self) -> bool:
         """ Decrypt the message """
-        assert 'crypted:aes256-cbf:pkcs7:rsa-oaep-mgf1-sha256' in self.modes, \
+        assert 'crypted:aes256-cfb:pkcs7:rsa-oaep-mgf1-sha256' in self.modes, \
                 f"Unknown mode={self.modes}"
 
         mesg = None # Initalise variable
@@ -329,7 +329,7 @@ def encode(cmFname: str, mesg: str, senders: list, receivers: list) -> tuple:
 
 # Implemented modes:
 #   cm.addMode('hashed:sha384')
-#   cm.addMode('crypted:aes256-cbf:pkcs7:rsa-oaep-mgf1-sha256')
+#   cm.addMode('crypted:aes256-cfb:pkcs7:rsa-oaep-mgf1-sha256')
 #   cm.addMode('signed:rsa:pss-mgf1:sha384')
 
 # Initialisation
