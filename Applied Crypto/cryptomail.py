@@ -322,13 +322,11 @@ class HvaCryptoMail:
             message = self.mesg.encode('utf-8') if isinstance(self.mesg, str) else self.mesg
             cipher = ciphers.Cipher(algorithms.AES(self.sesKey), modes.CFB(self.sesIv), backend=default_backend())
             encryptor = cipher.encryptor()
-            code = encryptor.update(message) + encryptor.finalize()
 
-            # Padding
-            padder = sympadding.PKCS7(128).padder()
-            padded_data = padder.update(code)
-            padded_data += padder.finalize()
-            code = padded_data
+            padder = sympadding.PKCS7(algorithms.AES.block_size).padder()
+            padded_data = padder.update(message) + padder.finalize()
+
+            code = encryptor.update(padded_data) + encryptor.finalize()
 # Student work }}
         if code is not None: self.code = code
         return code is not None
@@ -339,18 +337,19 @@ class HvaCryptoMail:
                 f"Unknown mode={self.modes}"
 
         mesg = None # Initalise variable
-# Student work {{
+# Student work {{        
         if self.sesKey is not None and self.sesIv is not None:
-            # Unpadding
-            unpadder = sympadding.PKCS7(128).unpadder()
-            padded_data = self.code
-            data = unpadder.update(padded_data)
-            data += unpadder.finalize()
-
             # Decrypt
-            cipher = ciphers.Cipher(algorithms.AES(self.sesKey), modes.CFB(self.sesIv), backend=default_backend())
-            decryptor = cipher.decryptor()
-            mesg = decryptor.update(data) + decryptor.finalize()
+            cipher = ciphers.Cipher(
+                algorithms.AES(self.sesKey),
+                modes.CFB(self.sesIv),
+                backend=default_backend()
+            ).decryptor()
+            unpadder = sympadding.PKCS7(128).unpadder()
+
+            decrypted_data = cipher.update(self.code) + cipher.finalize()
+            mesg = unpadder.update(decrypted_data) + unpadder.finalize()
+
 # Student work }}
         if mesg is not None: self.mesg = mesg
         return mesg is not None
@@ -548,7 +547,6 @@ def decode(cmFname: str, receivers: list=None, senders: list=None) -> tuple:
 
 # Set secretState to True as no secrets are reveiled otherwise False
 # Student work {{
-    print('cmFname: ', cmFname, 'reciever: ', receivers, 'sender: ', senders)
     if cm.hasMode('secret'):
         secretState = False
     else:
@@ -560,32 +558,31 @@ def decode(cmFname: str, receivers: list=None, senders: list=None) -> tuple:
         # Decrypt the message for receivers or senders
         # and update sendersState of receiversState
 # Student work {{
-        for receiver in receivers:
-            if cm.decryptSesKey(receiver):
-                if cm.decryptMesg():
-                    receiversState[receiver] = True
-                    secretState = True
-                else:
-                    receiversState[receiver] = False
+    for receiver in receivers:
+        if cm.decryptSesKey(receiver):
+            if cm.decryptMesg():
+                receiversState[receiver] = True
+                secretState = True
             else:
                 receiversState[receiver] = False
-        
-        for sender in senders:
-            if cm.decryptSesKey(sender):
-                if cm.decryptMesg():
-                    sendersState[sender] = True
-                    secretState = True
-                else:
-                    sendersState[sender] = False
+        else:
+            receiversState[receiver] = False
+    
+    for sender in senders:
+        if cm.decryptSesKey(sender):
+            if cm.decryptMesg():
+                sendersState[sender] = True
+                secretState = True
             else:
                 sendersState[sender] = False
+        else:
+            sendersState[sender] = False
 # Student work }} Decrypt
 
     if cm.hasMode('hashed'):
         if gVbs: print('Verbose: hashed')
 # Student work {{
     # Calculate hash and update hashState
-        cm.calcHash()
         if cm.chckHash():
             hashState = True
         else:
@@ -623,34 +620,6 @@ gDbg = False
 gSil = False
 
 def main():
-    # Set up test case
-    obj = HvaCryptoMail()  
-    obj.mesg = "Hello, world!"
-    obj.modes = ['crypted:aes256-cfb:pkcs7:rsa-oaep-mgf1-sha256']
-    # Generate a session key and initialization vector
-    obj.sesKey = b'\x84\xea\x0b\x88\x95vnW\xce\xf5\xa3\xec\xa0\xa6-\xc4$\xd2y\xc6\xfd\x03\xd1\x16\xe2\x99\x88\xbb\xc2\x08\x89\x1c'
-    obj.sesIv = b'\x9c*\xe2\x98\x11\xf7\x1fy\xd9\x14\x00\xa7e\xaf\xe9\x96'
-
-    # Test encryption
-    encryption_success = obj.encryptMesg()
-    if encryption_success:
-        print("Encryption successful.")
-        print("Encrypted message:", obj.code)
-    else:
-        print("Encryption failed.")
-        print("Encrypted message:", obj.code)
-
-    # Test decryption
-    decryption_success = obj.decryptMesg()
-    if decryption_success:
-        print("Decryption successful.")
-        print("Decrypted message:", obj.mesg)
-    else:
-        print("Decryption failed.")
-        print("Decrypted message:", obj.mesg)
-
-
-
     global gVbs, gDbg, gSil
     autoLoad = True
     cmFname = ''
