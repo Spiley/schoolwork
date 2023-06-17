@@ -503,7 +503,7 @@ def encode(cmFname: str, mesg: str, senders: list, receivers: list) -> tuple:
 
     # Encrypt (don't forget addMode)
 # Student work {{
-    cm.addMode('crypted:aes256-cbf:pkcs7:rsa-oaep-mgf1-sha256')
+    cm.addMode('crypted:aes256-cfb:pkcs7:rsa-oaep-mgf1-sha256')
     if receivers:
         for receiver in receivers:
             cm.loadPubKey(receiver)
@@ -623,6 +623,33 @@ gDbg = False
 gSil = False
 
 def main():
+    # Set up test case
+    obj = HvaCryptoMail()  
+    obj.mesg = "Hello, world!"
+    obj.modes = ['crypted:aes256-cfb:pkcs7:rsa-oaep-mgf1-sha256']
+    # Generate a session key and initialization vector
+    obj.sesKey = b'\x84\xea\x0b\x88\x95vnW\xce\xf5\xa3\xec\xa0\xa6-\xc4$\xd2y\xc6\xfd\x03\xd1\x16\xe2\x99\x88\xbb\xc2\x08\x89\x1c'
+    obj.sesIv = b'\x9c*\xe2\x98\x11\xf7\x1fy\xd9\x14\x00\xa7e\xaf\xe9\x96'
+
+    # Test encryption
+    encryption_success = obj.encryptMesg()
+    if encryption_success:
+        print("Encryption successful.")
+        print("Encrypted message:", obj.code)
+    else:
+        print("Encryption failed.")
+        print("Encrypted message:", obj.code)
+
+    # Test decryption
+    decryption_success = obj.decryptMesg()
+    if decryption_success:
+        print("Decryption successful.")
+        print("Decrypted message:", obj.mesg)
+    else:
+        print("Decryption failed.")
+        print("Decrypted message:", obj.mesg)
+
+
 
     global gVbs, gDbg, gSil
     autoLoad = True
