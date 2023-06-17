@@ -451,7 +451,7 @@ class HvaCryptoMail:
                 f"Unknown mode={self.modes}"
         res = None  # Initialized variable
 # Student work {{
-        message = self.mesg  # No need to encode self.mesg again
+        message = self.mesg
         digest = hashes.Hash(hashes.SHA384(), backend=default_backend())
         digest.update(message)
         calculated_dgst = digest.finalize()
@@ -482,7 +482,7 @@ def encode(cmFname: str, mesg: str, senders: list, receivers: list) -> tuple:
     cm = HvaCryptoMail()
     # Set cm.mesg
 # Student work {{
-    cm.mesg = mesg
+    cm.mesg = mesg.encode('utf-8')
 # Student work }} Set
 
     # Calc Hash (don't forget addMode)
@@ -496,27 +496,36 @@ def encode(cmFname: str, mesg: str, senders: list, receivers: list) -> tuple:
     cm.addMode('signed:rsa:pss-mgf1:sha384')
     if senders:
         for sender in senders:
-            cm.signMesg(sender)
-            sendersState[sender] = True
+            success = cm.signMesg(sender)
+            sendersState[sender] = success
+            cm.snds[sender] = sender.encode('utf-8')
 # Student work }} Sign
 
     # Encrypt (don't forget addMode)
 # Student work {{
     cm.addMode('crypted:aes256-cfb:pkcs7:rsa-oaep-mgf1-sha256')
+    # Generate session key and IV
+    cm.genSesKey(32)  # Generate a 256-bit key
+    cm.genSesIv(16)  # Generate a 128-bit IV
+
+    # Encrypt the session key for each receiver
     if receivers:
         for receiver in receivers:
             cm.loadPubKey(receiver)
-            cm.genSesKey(32)
-            cm.genSesIv(16)
-            cm.encryptSesKey(receiver)
-            cm.encryptMesg()
-            receiversState[receiver] = True
+            success = cm.encryptSesKey(receiver)
+            receiversState[receiver] = success
+
+    if receivers or senders:
+        cm.encryptMesg()  
+    
+
 # Student work }} Encrypt
 
     # Remove secrets
     # Secrets should not be a part of the saved CryptoMail structure
 # Student work {{
-    cm.__init__()
+    cm.sesKey = None
+    cm.prvs = None
 # Student work }} Secrets
 
     # Save & Return
@@ -547,10 +556,10 @@ def decode(cmFname: str, receivers: list=None, senders: list=None) -> tuple:
 
 # Set secretState to True as no secrets are reveiled otherwise False
 # Student work {{
-    if cm.hasMode('secret'):
-        secretState = False
-    else:
+    if cm.sesKey is None:
         secretState = True
+    else:
+        secretState = False
 # Student work }} CheckSecrets
 
     if cm.hasMode('crypted'):
@@ -558,35 +567,24 @@ def decode(cmFname: str, receivers: list=None, senders: list=None) -> tuple:
         # Decrypt the message for receivers or senders
         # and update sendersState of receiversState
 # Student work {{
-    for receiver in receivers:
-        if cm.decryptSesKey(receiver):
-            if cm.decryptMesg():
-                receiversState[receiver] = True
-                secretState = True
-            else:
-                receiversState[receiver] = False
-        else:
-            receiversState[receiver] = False
-    
-    for sender in senders:
-        if cm.decryptSesKey(sender):
-            if cm.decryptMesg():
-                sendersState[sender] = True
-                secretState = True
-            else:
-                sendersState[sender] = False
-        else:
-            sendersState[sender] = False
+        if receivers:
+            for receiver in receivers:
+                cm.loadPrvKey(receiver)
+                cm.decryptSesKey(receiver)
+                success = cm.decryptMesg()
+                receiversState[receiver] = success
+        if senders:
+            for sender in senders:
+                cm.loadPubKey(sender)
+                cm.decryptSesKey(sender)
+                success = cm.decryptMesg()
+                sendersState[sender] = success
 # Student work }} Decrypt
 
     if cm.hasMode('hashed'):
         if gVbs: print('Verbose: hashed')
 # Student work {{
-    # Calculate hash and update hashState
-        if cm.chckHash():
-            hashState = True
-        else:
-            hashState = False
+        hashState = cm.chckHash()
 # Student work }} Hash
 
     if cm.hasMode('signed'):
@@ -594,17 +592,12 @@ def decode(cmFname: str, receivers: list=None, senders: list=None) -> tuple:
         # Verify the message for receivers or senders
         # and update sendersState of receiversState
 # Student work {{
-    for receiver in receivers:
-        if cm.verifyMesg(receiver):
-            receiversState[receiver] = True
-        else:
-            receiversState[receiver] = False
-    
-    for sender in senders:
-        if cm.verifyMesg(sender):
-            sendersState[sender] = True
-        else:
-            sendersState[sender] = False
+        if senders:
+            for sender in senders:
+                if cm.verifyMesg(sender):
+                    sendersState[sender] = True
+                else:
+                    sendersState[sender] = False
     # Student work }} Verify
 
 # Convert bytes to str
